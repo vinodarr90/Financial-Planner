@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial Planner Portal</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  body { background: #f8f9fa; }
+  .header { background: #004085; color: white; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px; }
+  .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 10px; }
+  .btn-primary { background: #004085; border: none; }
+  .btn-primary:hover { background: #002752; }
+</style>
+<script>
+let chart;
+function calculatePlan() {
+  const clientName = document.getElementById('clientName').value || "Client";
+  const today = new Date().toLocaleDateString();
+
+  const currentAge = parseInt(document.getElementById('currentAge').value) || 0;
+  const retirementAge = parseInt(document.getElementById('retirementAge').value) || 0;
+  const lifeExpectancy = parseInt(document.getElementById('lifeExpectancy').value) || 0;
+  const yearsToRetirement = retirementAge - currentAge;
+  const retirementYears = lifeExpectancy - retirementAge;
+
+  const inflationRate = 0.07;
+  const investmentReturn = 0.12;
+  const r = investmentReturn / 12;
+  const n = yearsToRetirement * 12;
+
+  function futureValueAnnual(goal, years) {
+    return goal * ((Math.pow(1 + inflationRate, years) - 1) / inflationRate);
+  }
+  function futureValue(goal) {
+    return goal * Math.pow(1 + inflationRate, yearsToRetirement);
+  }
+
+  const educationGoalFV = futureValue(parseFloat(document.getElementById('educationGoal').value) || 0);
+  const realEstateGoalFV = futureValue(parseFloat(document.getElementById('realEstateGoal').value) || 0);
+
+  const intlTripCost = parseFloat(document.getElementById('internationalTripCost').value) || 0;
+  const intlTripsPerYear = parseInt(document.getElementById('internationalTripsPerYear').value) || 0;
+  const intlTripFV = futureValueAnnual(intlTripCost * intlTripsPerYear, yearsToRetirement);
+
+  const domTripCost = parseFloat(document.getElementById('domesticTripCost').value) || 0;
+  const domTripsPerYear = parseInt(document.getElementById('domesticTripsPerYear').value) || 0;
+  const domTripFV = futureValueAnnual(domTripCost * domTripsPerYear, yearsToRetirement);
+
+  const healthGoalFV = futureValue(parseFloat(document.getElementById('healthGoal').value) || 0);
+  const retirementMonthly = parseFloat(document.getElementById('retirementGoalMonthly').value) || 0;
+  const futureMonthlyRetirement = retirementMonthly * Math.pow(1 + inflationRate, yearsToRetirement);
+  const retirementCorpusFV = futureMonthlyRetirement * 12 * retirementYears;
+
+  function sip(goalFV) {
+    return goalFV * r / (Math.pow(1 + r, n) - 1);
+  }
+
+  const sipEducation = sip(educationGoalFV);
+  const sipRealEstate = sip(realEstateGoalFV);
+  const sipIntlTrip = sip(intlTripFV);
+  const sipDomTrip = sip(domTripFV);
+  const sipHealth = sip(healthGoalFV);
+  const sipRetirement = sip(retirementCorpusFV);
+  const sipTotal = sipEducation + sipRealEstate + sipIntlTrip + sipDomTrip + sipHealth + sipRetirement;
+
+  const annualExpenses = ((parseFloat(document.getElementById('rentExpense').value) || 0) + (parseFloat(document.getElementById('groceriesExpense').value) || 0) + (parseFloat(document.getElementById('utilitiesExpense').value) || 0) + (parseFloat(document.getElementById('staffSalaryExpense').value) || 0) + (parseFloat(document.getElementById('homeLoanEMI').value) || 0) + (parseFloat(document.getElementById('personalLoanEMI').value) || 0) + (parseFloat(document.getElementById('educationLoanEMI').value) || 0) + (parseFloat(document.getElementById('entertainmentExpense').value) || 0) + (parseFloat(document.getElementById('fashionExpense').value) || 0)) * 12;
+  const recommendedLifeCover = annualExpenses * 10;
+
+  document.getElementById('result').innerHTML = `
+    <h5>Financial Plan for ${clientName}</h5>
+    <p><strong>Date:</strong> ${today}</p>
+    <h6>SIP Breakdown</h6>
+    <p><strong>Education SIP:</strong> ₹${sipEducation.toFixed(2)}</p>
+    <p><strong>Real Estate/Other SIP:</strong> ₹${sipRealEstate.toFixed(2)}</p>
+    <p><strong>International Travel SIP:</strong> ₹${sipIntlTrip.toFixed(2)}</p>
+    <p><strong>Domestic Travel SIP:</strong> ₹${sipDomTrip.toFixed(2)}</p>
+    <p><strong>Health Goal SIP:</strong> ₹${sipHealth.toFixed(2)}</p>
+    <p><strong>Retirement SIP:</strong> ₹${sipRetirement.toFixed(2)}</p>
+    <hr>
+    <p><strong>Total SIP Required:</strong> ₹${sipTotal.toFixed(2)}</p>
+    <p><strong>Recommended Life Insurance Cover:</strong> ₹${recommendedLifeCover.toFixed(2)}</p>
+    <canvas id="sipChart" height="200"></canvas>
+    <button class="btn btn-secondary mt-3" onclick="downloadPDF('${clientName}', '${today}')">Download PDF</button>
+  `;
+
+  const ctx = document.getElementById('sipChart');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: ['Education', 'Real Estate/Other', 'International Travel', 'Domestic Travel', 'Health', 'Retirement'],
+      datasets: [{
+        data: [sipEducation, sipRealEstate, sipIntlTrip, sipDomTrip, sipHealth, sipRetirement],
+        backgroundColor: ['#007bff','#28a745','#ffc107','#17a2b8','#fd7e14','#6f42c1']
+      }]
+    }
+  });
+}
+</script>
+<body>
+<div class="container my-5">
+  <div class="header">
+    <h2>Financial Planning Portal</h2>
+    <p>Plan your investments and insurance smartly</p>
+  </div>
+  <div class="card p-4 mb-4">
+    <h5 class="mb-3">Client Details</h5>
+    <input type="text" id="clientName" class="form-control mb-2" placeholder="Client Name">
+    <input type="number" id="currentAge" class="form-control mb-2" placeholder="Current Age">
+    <input type="number" id="retirementAge" class="form-control mb-2" placeholder="Retirement Age">
+    <input type="number" id="lifeExpectancy" class="form-control mb-2" placeholder="Life Expectancy">
+    <hr>
+    <h6>Income (Monthly)</h6>
+    <input type="number" id="salaryIncome" class="form-control mb-2" placeholder="Salary Income (₹)">
+    <input type="number" id="otherIncome" class="form-control mb-2" placeholder="Other Income (₹)">
+    <hr>
+    <h6>Expenses (Monthly)</h6>
+    <input type="number" id="rentExpense" class="form-control mb-2" placeholder="Rent (₹)">
+    <input type="number" id="groceriesExpense" class="form-control mb-2" placeholder="Groceries (₹)">
+    <input type="number" id="utilitiesExpense" class="form-control mb-2" placeholder="Utilities (₹)">
+    <input type="number" id="staffSalaryExpense" class="form-control mb-2" placeholder="Staff Salaries (₹)">
+    <input type="number" id="homeLoanEMI" class="form-control mb-2" placeholder="Home Loan EMI (₹)">
+    <input type="number" id="personalLoanEMI" class="form-control mb-2" placeholder="Personal Loan EMI (₹)">
+    <input type="number" id="educationLoanEMI" class="form-control mb-2" placeholder="Education Loan EMI (₹)">
+    <input type="number" id="entertainmentExpense" class="form-control mb-2" placeholder="Entertainment (₹)">
+    <input type="number" id="fashionExpense" class="form-control mb-2" placeholder="Fashion (₹)">
+    <hr>
+    <h6>Goals</h6>
+    <input type="number" id="educationGoal" class="form-control mb-2" placeholder="Education Goal (₹)">
+    <input type="number" id="internationalTripCost" class="form-control mb-2" placeholder="International Trip Cost (₹)">
+    <input type="number" id="internationalTripsPerYear" class="form-control mb-2" placeholder="International Trips per Year">
+    <input type="number" id="domesticTripCost" class="form-control mb-2" placeholder="Domestic Trip Cost (₹)">
+    <input type="number" id="domesticTripsPerYear" class="form-control mb-2" placeholder="Domestic Trips per Year">
+    <input type="number" id="healthGoal" class="form-control mb-2" placeholder="Healthcare Goal (₹)">
+    <input type="number" id="realEstateGoal" class="form-control mb-2" placeholder="Real Estate/Other Goal (₹)">
+    <input type="number" id="retirementGoalMonthly" class="form-control mb-2" placeholder="Retirement Goal (Monthly ₹)">
+    <hr>
+    <h6>Current Investments (Monthly Contributions)</h6>
+    <input type="number" id="currentGoldInvest" class="form-control mb-2" placeholder="Gold Investments per Month (₹)">
+    <input type="number" id="currentRealEstateInvest" class="form-control mb-2" placeholder="Real Estate/Other Investments per Month (₹)">
+    <input type="number" id="currentMutualFundInvest" class="form-control mb-2" placeholder="Mutual Fund Investments per Month (₹)">
+    <hr>
+    <h6>Insurance</h6>
+    <input type="number" id="healthPremium" class="form-control mb-2" placeholder="Annual Health Insurance Premium (₹)">
+    <input type="number" id="lifePremium" class="form-control mb-2" placeholder="Annual Life Insurance Premium (₹)">
+    <input type="number" id="parentsHealthPremium" class="form-control mb-2" placeholder="Parents' Annual Health Insurance Premium (₹)">
+    <input type="number" id="healthCoverage" class="form-control mb-2" placeholder="Total Health Insurance Coverage (₹)">
+    <input type="number" id="parentsHealthCoverage" class="form-control mb-2" placeholder="Parents' Health Insurance Coverage (₹)">
+    <input type="number" id="lifeCoverage" class="form-control mb-2" placeholder="Total Life Insurance Coverage (₹)">
+    <button class="btn btn-primary mt-4" onclick="calculatePlan()">Calculate Plan</button>
+  </div>
+  <div id="result" class="card p-4 mt-4"></div>
+</div>
+</body>
+</html>
